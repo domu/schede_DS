@@ -5,11 +5,10 @@ import re
 import json
 import pandas as pd
 import io
-# Utilizziamo fpdf2 per una generazione nativa e sicura dei PDF su server cloud
+
 try:
     from fpdf import FPDF
 except ImportError:
-    # Fallback di sicurezza se la libreria non è ancora installata
     FPDF = None
 
 # Configurazione della pagina Streamlit per un look moderno e ampio
@@ -20,7 +19,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Stile CSS personalizzato per allineare l'estetica di Streamlit con la nostra griglia scura e forzare i testi a bianco
 st.markdown("""
 <style>
     /* Sfondo generale e toni scuri */
@@ -28,12 +26,12 @@ st.markdown("""
         background-color: #0f172a;
         color: #ffffff !important;
     }
-    /* Forza il testo bianco per intestazioni, label e paragrafi standard di Streamlit */
+    /* Forza il testo bianco per intestazioni, label e paragrafi standard */
     h1, h2, h3, h4, h5, h6, p, span, label, li {
         color: #ffffff !important;
         font-family: 'Inter', sans-serif;
     }
-    /* Personalizzazione estetica dei campi di input (Testi a bianco) */
+    /* Personalizzazione estetica dei campi di input con testo bianco */
     .stTextInput input, .stTextArea textarea, .stSelectbox div {
         color: #ffffff !important;
         background-color: #1e293b !important;
@@ -79,7 +77,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Dizionario locale ad associazione ASIN per i prodotti noti (fallback di sicurezza anti-CAPTCHA)
 ASIN_FALLBACKS = {
     "B0GLQFRRW7": {
         "nome": "YIXZSWD Totem Pubblicitario Impermeabile da Esterno IP65",
@@ -120,7 +117,7 @@ ASIN_FALLBACKS = {
         "tempi_consegna": "Spedizione Prime • Consegna in 24/48 ore",
         "categoria": "Elettronica & Accessori",
         "caratteristiche": [
-            "Tecnologia Bluetooth 5.0 ad alta fedeltà",
+            "Tecnologia Bluetooth 5.0 ad alta fidelity",
             "Audio surround 3D attivabile con tasto fisico",
             "Uscita audio Jack da 3.5mm e doppia RCA",
             "Portata estesa fino a 50 metri all'aperto"
@@ -208,7 +205,7 @@ def esegui_scraping_realtime(url):
             bullets = [b.text.strip() for b in bullet_els if b.text.strip()][:4]
             descrizione = " ".join(bullets[:2])
         else:
-            descrizione = "Dettagli da verificare manuale."
+            descrizione = "Dettagli da verificare manualmente."
             bullets = ["Specifiche da verificare", "Alta qualità costruttiva"]
             
         # Spedizione
@@ -301,7 +298,7 @@ col_add, col_clean = st.columns([5, 1])
 
 with col_add:
     # Campo di inserimento a singola riga
-    singolo_link = st.text_input("Aggiungi un singolo link Amazon.it:", placeholder="Incolla qui il link di un prodotto...")
+    singolo_link = st.text_input("Aggiungi un singolo link:", placeholder="Incolla qui il link di un prodotto...")
     if singolo_link.strip():
         asin = estrai_asin(singolo_link)
         if asin and not any(p["asin"] == asin for p in st.session_state.prodotti):
@@ -322,9 +319,8 @@ with col_clean:
 
 st.markdown("---")
 
-# Sezione Importazione Massiva con caricamento file XLS, CSV o file di testo da Drive
 with st.expander("📂 Importazione Massiva Link (Carica file Excel, CSV o File di Testo)"):
-    st.write("Puoi esportare un file con i tuoi link da Google Drive e caricarlo qui sotto. L'applicazione rileverà automaticamente tutti i collegamenti Amazon.")
+    st.write("Puoi esportare un file con i tuoi link da Google Drive e caricarlo qui sotto. L'applicazione rileverà automaticamente tutti i collegamenti.")
     file_caricato = st.file_uploader("Trascina o seleziona un file (.xlsx, .xls, .csv, .txt)", type=["xlsx", "xls", "csv", "txt"])
     
     if file_caricato is not None:
@@ -333,7 +329,6 @@ with st.expander("📂 Importazione Massiva Link (Carica file Excel, CSV o File 
             nome_file = file_caricato.name
             if nome_file.endswith(('.xlsx', '.xls')):
                 df = pd.read_excel(file_caricato)
-                # Cerca in tutte le celle di tipo stringa
                 for col in df.columns:
                     for val in df[col].dropna():
                         if isinstance(val, str) and "amazon.it" in val:
@@ -369,7 +364,7 @@ with st.expander("📂 Importazione Massiva Link (Carica file Excel, CSV o File 
                 else:
                     st.info("Tutti i link inseriti sono già presenti nel catalogo.")
             else:
-                st.error("Nessun link valido di Amazon.it rilevato all'interno del file.")
+                st.error("Nessun link valido rilevato all'interno del file.")
         except Exception as e:
             st.error(f"Errore durante la lettura del file: {str(e)}")
 
@@ -378,7 +373,7 @@ st.markdown("---")
 col_filtro, col_search = st.columns([1, 1])
 
 with col_filtro:
-    # Aggiungiamo i "Preferiti" e "Tutte" alle categorie disponibili
+    # Categorie disponibili con filtro Preferiti
     categorie = ["Tutte", "Preferiti ⭐"] + sorted(list(set(p["categoria"] for p in st.session_state.prodotti)))
     filtro_cat = st.selectbox("Filtra visualizzazione:", categorie)
 
@@ -468,7 +463,6 @@ def genera_pdf_esportabile(lista_prodotti):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     
-    # Funzione per pulire e codificare le stringhe in modo sicuro per evitare crash di codifica nel PDF
     def safe_str(s):
         if not s:
             return ""
@@ -607,16 +601,3 @@ st.markdown(f"""
     © 2026 <a href="https://linktr.ee/davide.pedrettibiagioni" target="_blank">Davide Pedretti Biagioni</a> • Tutti i diritti riservati.
 </div>
 """, unsafe_allow_html=True)
-```
-eof
-
-### Come configurare il tuo file `requirements.txt` su GitHub:
-Per permettere la generazione istantanea dei file PDF direttamente dal server Streamlit, assicurati che il tuo file `requirements.txt` all'interno del repository includa queste dipendenze:
-
-```text
-streamlit
-requests
-beautifulsoup4
-pandas
-openpyxl
-fpdf2
