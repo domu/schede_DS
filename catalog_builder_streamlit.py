@@ -5,11 +5,13 @@ import re
 import json
 import pandas as pd
 import io
+import textwrap
 
-# Configurazione della generazione nativa dei PDF
+# Utilizziamo fpdf2 per una generazione nativa e sicura dei PDF su server cloud
 try:
     from fpdf import FPDF
 except ImportError:
+    # Fallback di sicurezza se la libreria non è ancora installata
     FPDF = None
 
 # Questa deve essere rigorosamente la prima istruzione di Streamlit eseguita
@@ -20,29 +22,50 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-st.markdown("""
+# Stile CSS personalizzato per allineare l'estetica di Streamlit con la nostra griglia scura e forzare i testi a bianco
+st.markdown(textwrap.dedent("""
 <style>
-    /* Sfondo generale scuro coerente */
+    /* Sfondo generale e toni scuri */
     .stApp {
         background-color: #0f172a;
         color: #ffffff !important;
     }
     
-    /* Forza tutti i testi standard, le etichette e le intestazioni ad essere bianchi */
+    /* Forza il testo bianco per intestazioni, label e paragrafi standard di Streamlit */
     h1, h2, h3, h4, h5, h6, p, span, label, li {
         color: #ffffff !important;
         font-family: 'Inter', sans-serif;
     }
     
-    /* Personalizzazione estetica dei campi di input e delle aree di testo */
-    .stTextInput input, .stTextArea textarea, [data-baseweb="select"] {
+    /* Coerenza visiva totale per input, textarea, e selectbox (dropdown) */
+    .stTextInput input, 
+    .stTextArea textarea, 
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="select"] {
         color: #ffffff !important;
         background-color: #1e293b !important;
         border: 1px solid #334155 !important;
         border-radius: 8px !important;
+        font-family: 'Inter', sans-serif !important;
     }
     
-    .stTextInput input:focus, .stTextArea textarea:focus {
+    /* Forza l'allineamento delle dimensioni ed elimina i bordi interni predefiniti di Streamlit sui selectbox */
+    div[data-baseweb="select"] > div {
+        border: none !important;
+        min-height: 42px !important;
+    }
+    
+    /* Controllo specifico dello stato di hover */
+    .stTextInput input:hover, 
+    .stTextArea textarea:hover,
+    div[data-baseweb="select"] > div:hover {
+        border-color: #475569 !important;
+    }
+    
+    /* Controllo specifico dello stato active/focus */
+    .stTextInput input:focus, 
+    .stTextArea textarea:focus,
+    div[data-baseweb="select"]:focus-within > div {
         border-color: #6366f1 !important;
         box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
     }
@@ -116,7 +139,7 @@ st.markdown("""
         text-decoration: underline;
     }
 </style>
-""", unsafe_allow_html=True)
+"""), unsafe_allow_html=True)
 
 ASIN_FALLBACKS = {
     "B0GLQFRRW7": {
@@ -502,15 +525,15 @@ with tab_grid:
             with col:
                 stella_icona = "⭐ Preferito" if p.get("preferito", False) else "☆ Segna Preferito"
                 
-                # Visualizzazione della tessera grafica del prodotto
-                st.markdown(f"""
+                # Visualizzazione della tessera grafica del prodotto (usando textwrap.dedent per evitare che diventi blocco di codice in Markdown)
+                st.markdown(textwrap.dedent(f"""
                 <div style="background-color: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 10px; border: 1px solid #334155; min-height: 480px; display: flex; flex-direction: column; justify-content: space-between;">
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span style="background-color: #312e81; color: #c7d2fe; font-size: 10px; font-weight: bold; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">{p['categoria']}</span>
-                            {'<span style="color: #fbbf24; font-size: 16px;">⭐</span>' if p.get('preferito', False) else ''}
+                            {f'<span style="color: #fbbf24; font-size: 16px;">⭐</span>' if p.get('preferito', False) else ''}
                         </div>
-                        <h3 style="margin-top: 12px; font-size: 17px; min-height: 50px; color: #ffffff !important;">{p['nome']}</h3>
+                        <h3 style="margin-top: 12px; font-size: 17px; min-height: 50px; color: #ffffff !important; line-height: 1.3;">{p['nome']}</h3>
                         <div style="text-align: center; margin: 15px 0; background-color: #0f172a; border-radius: 12px; padding: 10px; height: 140px; display: flex; align-items: center; justify-content: center;">
                             <img src="{p['immagine']}" style="max-height: 100%; max-width: 100%; object-fit: contain; border-radius: 8px;" alt="Immagine">
                         </div>
@@ -529,7 +552,7 @@ with tab_grid:
                         </div>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
+                """).strip(), unsafe_allow_html=True)
                 
                 # Sviluppo dei pulsanti interattivi di riga
                 col_pref, col_mag = st.columns(2)
@@ -538,7 +561,9 @@ with tab_grid:
                         p["preferito"] = not p.get("preferito", False)
                         st.rerun()
                 with col_mag:
-                    st.markdown(f'<a href="{p["link"]}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #4f46e5; color: white; font-size: 12px; font-weight: 600; padding: 10px 0; border-radius: 8px; text-decoration: none;">Magazzino</a>', unsafe_allow_html=True)
+                    st.markdown(textwrap.dedent(f"""
+                    <a href="{p['link']}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #4f46e5; color: white; font-size: 12px; font-weight: 600; padding: 10px 0; border-radius: 8px; text-decoration: none; border: 1px solid transparent;">Magazzino</a>
+                    """).strip(), unsafe_allow_html=True)
 
 with tab_editor:
     st.subheader("⚙️ Gestione e Modifica Dati")
@@ -568,8 +593,8 @@ with tab_editor:
                     st.rerun()
 
 # Piè di pagina personalizzato con copyright e linktree
-st.markdown(f"""
+st.markdown(textwrap.dedent(f"""
 <div class="custom-footer">
     © 2026 <a href="https://linktr.ee/davide.pedrettibiagioni" target="_blank">Davide Pedretti Biagioni</a> • Tutti i diritti riservati.
 </div>
-""", unsafe_allow_html=True)
+""").strip(), unsafe_allow_html=True)
