@@ -11,10 +11,9 @@ import textwrap
 try:
     from fpdf import FPDF
 except ImportError:
-    # Fallback di sicurezza se la libreria non è ancora installata
     FPDF = None
 
-# Questa deve essere rigorosamente la prima istruzione di Streamlit eseguita
+# Configurazione della pagina Streamlit (Prima istruzione del file)
 st.set_page_config(
     page_title="Catalogo & Schede",
     page_icon="📋",
@@ -22,7 +21,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Stile CSS personalizzato per allineare l'estetica di Streamlit con la nostra griglia scura e forzare i testi a bianco
+# Stile CSS personalizzato per allineare l'estetica di Streamlit e forzare i testi a bianco
 st.markdown(textwrap.dedent("""
 <style>
     /* Sfondo generale e toni scuri */
@@ -31,15 +30,16 @@ st.markdown(textwrap.dedent("""
         color: #ffffff !important;
     }
     
-    /* Forza il testo bianco per intestazioni, label e paragrafi standard di Streamlit */
-    h1, h2, h3, h4, h5, h6, p, span, label, li {
+    /* Forza il testo bianco per intestazioni, label e paragrafi standard */
+    h1, h2, h3, h4, h5, h6, p, span, label, li, div {
         color: #ffffff !important;
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter', sans-serif !important;
     }
     
-    /* Coerenza visiva totale per input, textarea, e selectbox (dropdown) */
+    /* Coerenza visiva totale per input di testo, aree di testo, selettori e pulsanti di caricamento */
     .stTextInput input, 
     .stTextArea textarea, 
+    .stFileUploader section,
     div[data-baseweb="select"] > div,
     div[data-baseweb="select"] {
         color: #ffffff !important;
@@ -49,20 +49,20 @@ st.markdown(textwrap.dedent("""
         font-family: 'Inter', sans-serif !important;
     }
     
-    /* Forza l'allineamento delle dimensioni ed elimina i bordi interni predefiniti di Streamlit sui selectbox */
+    /* Correzioni specifiche per il menu a tendina selectbox di Streamlit */
     div[data-baseweb="select"] > div {
         border: none !important;
         min-height: 42px !important;
     }
     
-    /* Controllo specifico dello stato di hover */
+    /* Hover */
     .stTextInput input:hover, 
     .stTextArea textarea:hover,
     div[data-baseweb="select"] > div:hover {
         border-color: #475569 !important;
     }
     
-    /* Controllo specifico dello stato active/focus */
+    /* Focus */
     .stTextInput input:focus, 
     .stTextArea textarea:focus,
     div[data-baseweb="select"]:focus-within > div {
@@ -70,13 +70,13 @@ st.markdown(textwrap.dedent("""
         box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
     }
     
-    /* Forza il testo segnaposto (placeholder) in un bianco opaco/semi-trasparente ad alta visibilità */
-    ::placeholder, .stTextInput input::placeholder, .stTextArea textarea::placeholder, input::placeholder, textarea::placeholder {
+    /* Placeholder testo in un bianco opaco ad alta visibilità */
+    ::placeholder, .stTextInput input::placeholder, .stTextArea textarea::placeholder {
         color: rgba(255, 255, 255, 0.6) !important;
-        opacity: 1 !important; /* Forza l'opacità su browser Firefox */
+        opacity: 1 !important;
     }
     
-    /* Personalizzazione dei menu a tendina e dei dropdown (scuri e leggibili) */
+    /* Personalizzazione dei menu a tendina a comparsa */
     div[data-baseweb="popover"], div[data-baseweb="menu"], ul[role="listbox"] {
         background-color: #1e293b !important;
         border: 1px solid #334155 !important;
@@ -134,13 +134,34 @@ st.markdown(textwrap.dedent("""
         text-decoration: none;
         font-weight: 500;
     }
-    
-    .custom-footer a:hover {
-        text-decoration: underline;
-    }
 </style>
 """), unsafe_allow_html=True)
 
+def converti_link_drive(url):
+    """Estrae l'ID del file da un link di condivisione di Google Drive e restituisce il link diretto."""
+    if not url or "drive.google.com" not in url:
+        return url
+    
+    # Pattern per estrarre l'ID da link come: /file/d/ID_DEL_FILE/view
+    match_d = re.search(r'/file/d/([a-zA-Z0-9_-]+)', url)
+    if match_d:
+        file_id = match_d.group(1)
+        return f"https://lh3.googleusercontent.com/d/{file_id}"
+        
+    # Pattern per estrarre l'ID da link come: ?id=ID_DEL_FILE
+    match_id = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', url)
+    if match_id:
+        file_id = match_id.group(1)
+        return f"https://lh3.googleusercontent.com/d/{file_id}"
+        
+    return url
+
+def clean_html(html_str):
+    """Comprime l'HTML rimuovendo spazi bianchi e a capo iniziali che mandano in crash Streamlit."""
+    lines = [line.strip() for line in html_str.split("\n")]
+    return "".join(lines)
+
+# Database di fallback basato puramente sull'ASIN rilevato
 ASIN_FALLBACKS = {
     "B0GLQFRRW7": {
         "nome": "YIXZSWD Totem Pubblicitario Impermeabile da Esterno IP65",
@@ -205,14 +226,12 @@ def esegui_scraping_realtime(url):
     if not asin:
         return None
         
-    # Se presente nel dizionario ad associazione ASIN diretta, lo restituisce subito
     if asin in ASIN_FALLBACKS:
         data = ASIN_FALLBACKS[asin].copy()
         data["asin"] = asin
         data["link"] = url
         return data
 
-    # Se non è registrato staticamente, genera una scheda vuota/generica incentrata su quell'ASIN
     return genera_fallback_generico(url, asin)
 
 def genera_fallback_generico(url, asin):
@@ -277,12 +296,12 @@ if "prodotti" not in st.session_state:
         }
     ]
 
+# Renderizzazione del titolo
 st.title("Catalogo & Schede")
 
 col_add, col_clean = st.columns([5, 1])
 
 with col_add:
-    # Campo di input a riga singola con placeholder bianco opaco configurato tramite CSS
     singolo_link = st.text_input(
         "Aggiungi un singolo link Amazon.it:",
         placeholder="Incolla qui il link del prodotto..."
@@ -361,7 +380,6 @@ st.markdown("---")
 col_filtro, col_search = st.columns([1, 1])
 
 with col_filtro:
-    # Aggiungiamo i Preferiti e Categorie
     categorie = ["Tutte", "Preferiti ⭐"] + sorted(list(set(p["categoria"] for p in st.session_state.prodotti)))
     filtro_cat = st.selectbox("Filtra visualizzazione:", categorie)
 
@@ -479,7 +497,6 @@ def genera_pdf_esportabile(lista_prodotti):
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(5)
         
-    # Forza la conversione in bytes nativi per evitare crash nel modulo download_button di Streamlit
     pdf_bytes = pdf.output()
     if isinstance(pdf_bytes, bytearray):
         pdf_bytes = bytes(pdf_bytes)
@@ -524,16 +541,17 @@ with tab_grid:
             col = cols[idx % 3]
             with col:
                 stella_icona = "⭐ Preferito" if p.get("preferito", False) else "☆ Segna Preferito"
+                stella_badge = '<span style="color: #fbbf24; font-size: 16px;">⭐ Preferito</span>' if p.get('preferito', False) else ''
                 
-                # Visualizzazione della tessera grafica del prodotto (usando textwrap.dedent per evitare che diventi blocco di codice in Markdown)
-                st.markdown(textwrap.dedent(f"""
+                # HTML minificato a singola riga per impedire che gli spazi all'inizio della riga attivino la formattazione a codice di Streamlit
+                html_card = f"""
                 <div style="background-color: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 10px; border: 1px solid #334155; min-height: 480px; display: flex; flex-direction: column; justify-content: space-between;">
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <span style="background-color: #312e81; color: #c7d2fe; font-size: 10px; font-weight: bold; padding: 4px 10px; border-radius: 6px; text-transform: uppercase;">{p['categoria']}</span>
-                            {f'<span style="color: #fbbf24; font-size: 16px;">⭐</span>' if p.get('preferito', False) else ''}
+                            {stella_badge}
                         </div>
-                        <h3 style="margin-top: 12px; font-size: 17px; min-height: 50px; color: #ffffff !important; line-height: 1.3;">{p['nome']}</h3>
+                        <h3 style="margin-top: 12px; font-size: 17px; min-height: 50px; color: #ffffff !important; line-height: 1.3; font-weight: 700;">{p['nome']}</h3>
                         <div style="text-align: center; margin: 15px 0; background-color: #0f172a; border-radius: 12px; padding: 10px; height: 140px; display: flex; align-items: center; justify-content: center;">
                             <img src="{p['immagine']}" style="max-height: 100%; max-width: 100%; object-fit: contain; border-radius: 8px;" alt="Immagine">
                         </div>
@@ -552,7 +570,10 @@ with tab_grid:
                         </div>
                     </div>
                 </div>
-                """).strip(), unsafe_allow_html=True)
+                """
+                
+                # Renderizziamo l'HTML ripulito e privo di indentazione
+                st.markdown(clean_html(html_card), unsafe_allow_html=True)
                 
                 # Sviluppo dei pulsanti interattivi di riga
                 col_pref, col_mag = st.columns(2)
@@ -561,13 +582,15 @@ with tab_grid:
                         p["preferito"] = not p.get("preferito", False)
                         st.rerun()
                 with col_mag:
-                    st.markdown(textwrap.dedent(f"""
-                    <a href="{p['link']}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #4f46e5; color: white; font-size: 12px; font-weight: 600; padding: 10px 0; border-radius: 8px; text-decoration: none; border: 1px solid transparent;">Magazzino</a>
-                    """).strip(), unsafe_allow_html=True)
+                    # Pulsante Magazzino con link all'articolo
+                    magazzino_html = f"""
+                    <a href="{p['link']}" target="_blank" style="display: block; width: 100%; text-align: center; background-color: #4f46e5; color: white; font-size: 12px; font-weight: 600; padding: 10px 0; border-radius: 8px; text-decoration: none; border: 1px solid transparent; font-family: 'Inter', sans-serif;">Magazzino</a>
+                    """
+                    st.markdown(clean_html(magazzino_html), unsafe_allow_html=True)
 
 with tab_editor:
     st.subheader("⚙️ Gestione e Modifica Dati")
-    st.write("Configura o correggi i dettagli delle schede prodotto prima di effettuare l'esportazione.")
+    st.write("Configura o correggi i dettagli delle schede prodotto. Puoi copiare e incollare l'URL di condivisione di una foto su Google Drive per collegare direttamente le tue immagini!")
     
     for idx, p in enumerate(st.session_state.prodotti):
         stella_titolo = "⭐ " if p.get("preferito", False) else ""
@@ -579,7 +602,10 @@ with tab_editor:
                 st.session_state.prodotti[idx]["categoria"] = st.text_input(f"Categoria", value=p["categoria"], key=f"cat_{p['id']}")
                 st.session_state.prodotti[idx]["tempi_consegna"] = st.text_input(f"Tempi di Spedizione", value=p["tempi_consegna"], key=f"del_{p['id']}")
             with col_right:
-                st.session_state.prodotti[idx]["immagine"] = st.text_input(f"URL Immagine", value=p["immagine"], key=f"img_{p['id']}")
+                # Campo URL Immagine (Riconosce e converte i link di Google Drive all'istante)
+                input_immagine = st.text_input(f"URL Immagine (Anche link Google Drive)", value=p["immagine"], key=f"img_{p['id']}")
+                st.session_state.prodotti[idx]["immagine"] = converti_link_drive(input_immagine)
+                
                 st.session_state.prodotti[idx]["descrizione"] = st.text_area(f"Descrizione", value=p["descrizione"], height=120, key=f"desc_{p['id']}")
                 
             # Interruttori di riga preferiti ed eliminazione
@@ -593,8 +619,9 @@ with tab_editor:
                     st.rerun()
 
 # Piè di pagina personalizzato con copyright e linktree
-st.markdown(textwrap.dedent(f"""
+footer_html = """
 <div class="custom-footer">
     © 2026 <a href="https://linktr.ee/davide.pedrettibiagioni" target="_blank">Davide Pedretti Biagioni</a> • Tutti i diritti riservati.
 </div>
-""").strip(), unsafe_allow_html=True)
+"""
+st.markdown(clean_html(footer_html), unsafe_allow_html=True)
